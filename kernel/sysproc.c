@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -96,4 +97,23 @@ uint64
 sys_getyear(void)
 {
   return 1975;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  struct sysinfo info;
+  uint64 addr;
+  struct proc *p = myproc();
+
+  argaddr(0, &addr);
+
+  info.freemem = get_free_memory();
+  info.nproc = get_number_of_process();
+
+  if (copyout(p->pagetable, addr, (char*) &info, sizeof(info)) < 0) {
+    return -1;
+  }
+
+  return 0;
 }

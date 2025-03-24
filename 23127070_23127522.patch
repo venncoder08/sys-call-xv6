@@ -1,8 +1,449 @@
+diff --git a/23127070_23127522.patch b/23127070_23127522.patch
+deleted file mode 100644
+index 0cea8ef..0000000
+--- a/23127070_23127522.patch
++++ /dev/null
+@@ -1,435 +0,0 @@
+-diff --git a/Makefile b/Makefile
+-index f040908..74e454f 100644
+---- a/Makefile
+-+++ b/Makefile
+-@@ -194,11 +194,8 @@ UPROGS=\
+- 	$U/_grind\
+- 	$U/_wc\
+- 	$U/_zombie\
+--	$U/_sleep\
+--	$U/_pingpong\
+--	$U/_primes\
+--	$U/_find\
+--	$U/_xargs\
+-+
+-+
+- 
+- 
+- ifeq ($(LAB),syscall)
+-diff --git a/user/find.c b/user/find.c
+-deleted file mode 100644
+-index daa40ea..0000000
+---- a/user/find.c
+-+++ /dev/null
+-@@ -1,89 +0,0 @@
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--#include "kernel/fs.h"
+--#include "kernel/fcntl.h"
+--
+--void find(char* path, char* file)
+--{
+--    char buffer[512], *p;
+--    int fd;
+--    struct dirent de;
+--    struct stat st;
+--
+--    // Open the path, exit if it fails
+--    if((fd = open(path, O_RDONLY)) < 0)
+--    {
+--        printf("Find: Cannot open %s\n", path);
+--        return;
+--    }
+--
+--    // Get path information, exit if it fails
+--    if(fstat(fd, &st) < 0)
+--    {
+--        printf("Find: Cannot stat %s\n", path);
+--        close(fd);
+--        return;
+--    }
+--
+--    // Check if st is a directory
+--    if(st.type == T_DIR)
+--    {
+--        // Check the length of the file
+--        if(strlen(path) + 1 + DIRSIZ + 1 > sizeof(buffer))
+--        {
+--            printf("Find: path too long\n");
+--        }
+--
+--        // p is a pointer to the buffer path
+--        strcpy(buffer, path);
+--        p = buffer + strlen(buffer);
+--        *p++ = '/';
+--
+--        // Traverse through child objects
+--        while(read(fd, &de, sizeof(de)) == sizeof(de))
+--        {
+--            if(de.inum == 0) continue;
+--
+--            // Create path to child object
+--            memmove(p, de.name, DIRSIZ);
+--            p[DIRSIZ] = 0;
+--
+--            // Do not recurse into "." and ".."
+--            if(strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
+--            {
+--                continue;
+--            }
+--
+--            // Read information of the temporary path
+--            if(stat(buffer, &st) < 0)
+--            {
+--                continue;
+--            }
+--
+--            // Compare file name with the file to find, print to screen if matched
+--            if(strcmp(de.name, file) == 0)
+--            {
+--                printf("%s\n", buffer);
+--            }
+--
+--            // If child object is a directory, recursively call into that directory
+--            if(st.type == T_DIR)
+--            {
+--                find(buffer, file);
+--            }
+--        }
+--        close(fd);
+--    }
+--}
+--
+--int main(int argc, char* argv[])
+--{
+--    if(argc != 3)
+--    {
+--        printf("Usage: find <directory> <filename>\n");
+--        exit(1);
+--    }
+--    find(argv[1], argv[2]);
+--    exit(0);
+--}
+-\ No newline at end of file
+-diff --git a/user/find.c:Zone.Identifier b/user/find.c:Zone.Identifier
+-deleted file mode 100644
+-index a45e1ac..0000000
+---- a/user/find.c:Zone.Identifier
+-+++ /dev/null
+-@@ -1,2 +0,0 @@
+--[ZoneTransfer]
+--ZoneId=3
+-diff --git a/user/pingpong.c b/user/pingpong.c
+-deleted file mode 100644
+-index d29e987..0000000
+---- a/user/pingpong.c
+-+++ /dev/null
+-@@ -1,72 +0,0 @@
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--
+--int main(int argc, char* argv[])
+--{
+--    int fd1[2]; // Parent -> Child
+--    int fd2[2]; // Child -> Parent
+--
+--    if(pipe(fd1) < 0 || pipe(fd2) < 0)
+--    {
+--        printf("Pipe failed.\n");
+--        exit(0);
+--    }
+--
+--    int pid = fork();
+--    if(pid < 0)
+--    {
+--        printf("Fork failed.\n");
+--        exit(0);
+--    }
+--
+--    if(pid == 0) // Child process
+--    {
+--        close(fd1[1]); // Close the write end of fd1 (child only reads from fd1)
+--        close(fd2[0]); // Close the read end of fd2 (child only writes to fd2)
+--
+--        char buffer;
+--        if(read(fd1[0], &buffer, sizeof(char)) != 1)
+--        {
+--            printf("Child read failed.\n");
+--            exit(0);
+--        }
+--
+--        printf("%d: received ping\n", getpid()); // Print child's PID with "received ping"
+--
+--        if(write(fd2[1], &buffer, sizeof(char)) != 1)
+--        {
+--            printf("Child write failed.\n");
+--            exit(0);
+--        }
+--
+--        close(fd1[0]);
+--        close(fd2[1]);
+--        exit(0);
+--    }
+--    else // Parent process
+--    {
+--        close(fd1[0]); // Close the read end of fd1 (parent only writes to fd1)
+--        close(fd2[1]); // Close the write end of fd2 (parent only reads from fd2)
+--
+--        char buffer = ';'; // Byte to send
+--        if(write(fd1[1], &buffer, sizeof(char)) != 1)
+--        {
+--            printf("Parent write failed.\n");
+--            exit(0);
+--        }
+--
+--        if(read(fd2[0], &buffer, sizeof(char)) != 1)
+--        {
+--            printf("Parent read failed.\n");
+--            exit(0);
+--        }
+--
+--        printf("%d: received pong\n", getpid()); // Print parent's PID with "received pong"
+--
+--        close(fd1[1]);
+--        close(fd2[0]);
+--        wait(0); // Wait for child process
+--        exit(0);
+--    }
+--}
+-\ No newline at end of file
+-diff --git a/user/pingpong.c:Zone.Identifier b/user/pingpong.c:Zone.Identifier
+-deleted file mode 100644
+-index a45e1ac..0000000
+---- a/user/pingpong.c:Zone.Identifier
+-+++ /dev/null
+-@@ -1,2 +0,0 @@
+--[ZoneTransfer]
+--ZoneId=3
+-diff --git a/user/primes.c b/user/primes.c
+-deleted file mode 100644
+-index 0bd2ce0..0000000
+---- a/user/primes.c
+-+++ /dev/null
+-@@ -1,124 +0,0 @@
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--
+--// Prevent program from infinite recursion error.
+--void sieve(int read_fd) __attribute__((noreturn));
+--
+--// Implement the Sieve of Eratosthenes algorithm
+--void sieve(int read_fd)
+--{
+--  int p; // The next prime number
+--  int n; // The number of remaining number read
+--
+--  // Read the first prime number from the pipe
+--  if (read(read_fd, &p, sizeof(int)) <= 0)
+--  {
+--    printf("Failed to read a prime.\n");
+--    exit(0);
+--  }
+--
+--  printf("prime %d\n", p);
+--
+--  // File descriptor array for new pipe
+--  int fd[2];
+--
+--  // Create a new pipe
+--  if (pipe(fd) < 0)
+--  {
+--    printf("Failed to create pipe.\n"); // Print error if pipe creation fails
+--    exit(0);
+--  }
+--
+--  // Create child process
+--  int pid = fork();
+--  if (pid < 0)
+--  {
+--    printf("Failed to fork.\n"); // Print error if fork fails
+--    exit(0);
+--  }
+--
+--  if (pid == 0)
+--  {
+--    close(fd[1]); // Close the write end of the new pipe
+--    close(read_fd); // Close the read end of the old pipe
+--    sieve(fd[0]);
+--  }
+--  else
+--  {
+--    close(fd[0]); // Close the read end of the new pipe
+--
+--    // Read the remaining numbers from the old pipe
+--    while (read(read_fd, &n, sizeof(int)) > 0)
+--    {
+--      // If n is not divisible by p, write it to the new pipe
+--      if (n % p != 0) 
+--      {
+--        if (write(fd[1], &n, sizeof(int)) != sizeof(int))
+--        {
+--          printf(("Failed to write to pipe.\n")); // Print error if write fails
+--          exit(0);
+--        }
+--      }
+--    }
+--
+--    close(fd[1]); // Close the write end of the new pipe
+--    close(read_fd); // Close the read end of the old pipe
+--
+--    // Wait for child process to finish
+--    wait(0);
+--    exit(0);
+--  }
+--}
+--
+--// Main function
+--int main(int argc, char* argv[])
+--{
+--  int fd[2]; // File descriptor array for the first pipe
+--
+--  // Create a pipe
+--  if (pipe(fd) < 0)
+--  {
+--    printf("Failed to create pipe.\n"); // Print error if pipe creation fails
+--    exit(0);
+--  }
+--
+--  // Create child process
+--  int pid = fork();
+--  if (pid < 0)
+--  {
+--    printf("Failed to fork.\n"); // Print error if fork fails
+--    exit(0);
+--  }
+--
+--  // fd[1] - the write end of the pipe
+--  // fd[0] - the read end of the pipe
+--
+--  if (pid == 0) // Child process
+--  {
+--    close(fd[1]); // Close the write end of the pipe
+--    sieve(fd[0]); // Call sieve function with the read end of the pipe
+--  }
+--  else // Parent process
+--  {
+--    close(fd[0]); // Close the read end of the pipe
+--
+--    // Write numbers from 2 to 280 into the pipe
+--    for (int i = 2; i <= 280; ++i)
+--    {
+--      if (write(fd[1], &i, sizeof(int)) != sizeof(int))
+--      {
+--        printf(("Failed to write to pipe.\n")); // Print error if write fails
+--        exit(0);
+--      }
+--    }
+--
+--    close(fd[1]); // Close the write end of the pipe
+--
+--    // Wait for child process to finish
+--    wait(0);
+--    exit(0);
+--  }
+--
+--  return 0;
+--}
+-diff --git a/user/primes.c:Zone.Identifier b/user/primes.c:Zone.Identifier
+-deleted file mode 100644
+-index a45e1ac..0000000
+---- a/user/primes.c:Zone.Identifier
+-+++ /dev/null
+-@@ -1,2 +0,0 @@
+--[ZoneTransfer]
+--ZoneId=3
+-diff --git a/user/sleep.c b/user/sleep.c
+-deleted file mode 100644
+-index cb13b23..0000000
+---- a/user/sleep.c
+-+++ /dev/null
+-@@ -1,19 +0,0 @@
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--
+--int main(int argc, char *argv[]) {
+--    if (argc != 2) {
+--        fprintf(2, "Usage: sleep <seconds>\n");
+--        exit(1);
+--    }
+--
+--    int seconds = atoi(argv[1]);
+--    if (seconds < 0) {
+--        fprintf(2, "Error: Invalid number of seconds\n");
+--        exit(1);
+--    }
+--
+--    sleep(seconds);
+--    exit(0);
+--}
+-\ No newline at end of file
+-diff --git a/user/xargs.c b/user/xargs.c
+-deleted file mode 100644
+-index 4b74646..0000000
+---- a/user/xargs.c
+-+++ /dev/null
+-@@ -1,47 +0,0 @@
+--#include "kernel/param.h"
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--
+--int main(int argc, char* argv[])
+--{
+--    char buffer[512];
+--    char* newargv[MAXARG];
+--    int newargc = argc - 1; // Number of arguments excluding program name
+--
+--    // Copy initial arguments into newargv
+--    for (int i = 0; i < newargc; ++i) {
+--        newargv[i] = argv[i + 1];
+--    }
+--
+--    int idx = 0;
+--    // Read input from stdin and process it line by line
+--    while (read(0, &buffer[idx], sizeof(char)) > 0) {
+--        if (buffer[idx] == '\n' || idx == sizeof(buffer) - 1)
+--            {
+--            buffer[idx] = 0; // Null-terminate the string
+--            if (idx > 0 && buffer[idx - 1] == '\n') {
+--                buffer[idx - 1] = 0; // Remove extra newline
+--            }
+--
+--            // Add the new argument to newargv
+--            newargv[newargc] = buffer;
+--            newargv[newargc + 1] = 0; // Terminate the argument list
+--
+--            // Fork a new process and execute the command
+--            if (fork() == 0) {
+--                if (exec(newargv[0], newargv) < 0) {
+--                    printf("exec failed\n");
+--                    exit(1); // Exit child process with error
+--                }
+--            }
+--
+--            wait(0); // Wait for the child process to finish
+--            idx = 0; // Reset index for next line
+--        } else {
+--            ++idx;
+--        }
+--    }
+--
+--    exit(0);
+--}
+-\ No newline at end of file
+-diff --git a/user/xargs.c:Zone.Identifier b/user/xargs.c:Zone.Identifier
+-deleted file mode 100644
+-index a45e1ac..0000000
+---- a/user/xargs.c:Zone.Identifier
+-+++ /dev/null
+-@@ -1,2 +0,0 @@
+--[ZoneTransfer]
+--ZoneId=3
 diff --git a/Makefile b/Makefile
-index f040908..74e454f 100644
+index db2823c..74e454f 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -194,11 +194,8 @@ UPROGS=\
+@@ -194,12 +194,7 @@ UPROGS=\
  	$U/_grind\
  	$U/_wc\
  	$U/_zombie\
@@ -11,11 +452,55 @@ index f040908..74e454f 100644
 -	$U/_primes\
 -	$U/_find\
 -	$U/_xargs\
-+
+-	$U/_test_getyear\
 +
  
  
- ifeq ($(LAB),syscall)
+ 
+diff --git a/kernel/syscall.c b/kernel/syscall.c
+index b478d97..ed65409 100644
+--- a/kernel/syscall.c
++++ b/kernel/syscall.c
+@@ -101,7 +101,6 @@ extern uint64 sys_unlink(void);
+ extern uint64 sys_link(void);
+ extern uint64 sys_mkdir(void);
+ extern uint64 sys_close(void);
+-extern uint64 sys_getyear(void);
+ 
+ // An array mapping syscall numbers from syscall.h
+ // to the function that handles the system call.
+@@ -127,7 +126,6 @@ static uint64 (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
+-[SYS_getyear] sys_getyear,
+ };
+ 
+ void
+diff --git a/kernel/syscall.h b/kernel/syscall.h
+index 119e4cf..bc5f356 100644
+--- a/kernel/syscall.h
++++ b/kernel/syscall.h
+@@ -20,4 +20,3 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
+-#define SYS_getyear 22
+diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+index 826b1ac..3b4d5bd 100644
+--- a/kernel/sysproc.c
++++ b/kernel/sysproc.c
+@@ -91,9 +91,3 @@ sys_uptime(void)
+   release(&tickslock);
+   return xticks;
+ }
+-
+-uint64
+-sys_getyear(void)
+-{
+-  return 1975;
+-}
+\ No newline at end of file
 diff --git a/user/find.c b/user/find.c
 deleted file mode 100644
 index daa40ea..0000000
@@ -370,6 +855,43 @@ index cb13b23..0000000
 -    sleep(seconds);
 -    exit(0);
 -}
+\ No newline at end of file
+diff --git a/user/test_getyear.c b/user/test_getyear.c
+deleted file mode 100644
+index 6e9e976..0000000
+--- a/user/test_getyear.c
++++ /dev/null
+@@ -1,8 +0,0 @@
+-#include "kernel/types.h"
+-#include "kernel/stat.h"
+-#include "user/user.h"
+-
+-int main(void) {
+-    printf("Note: Unix V6 was released in year %d\n", getyear());
+-    exit(0);
+-}
+\ No newline at end of file
+diff --git a/user/user.h b/user/user.h
+index 617b9f8..f16fe27 100644
+--- a/user/user.h
++++ b/user/user.h
+@@ -22,7 +22,6 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
+-int getyear(void);
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+diff --git a/user/usys.pl b/user/usys.pl
+index df8412d..01e426e 100755
+--- a/user/usys.pl
++++ b/user/usys.pl
+@@ -36,4 +36,3 @@ entry("getpid");
+ entry("sbrk");
+ entry("sleep");
+ entry("uptime");
+-entry("getyear");
 \ No newline at end of file
 diff --git a/user/xargs.c b/user/xargs.c
 deleted file mode 100644
