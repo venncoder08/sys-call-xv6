@@ -119,6 +119,8 @@ allocproc(void)
       release(&p->lock);
     }
   }
+  p->trace_mask = 0;
+  p->trace_silent = 0;
   return 0;
 
 found:
@@ -321,6 +323,11 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+
+  // **Copy trace_mask từ parent sang child**
+  p->pid = allocpid();
+  p->trace_mask = myproc()->trace_mask;
+  p->trace_silent = myproc()->trace_silent;
 
   return pid;
 }
