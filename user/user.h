@@ -1,6 +1,8 @@
 struct stat;
 struct sysinfo;
 
+#include "../kernel/types.h"
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -25,6 +27,7 @@ int sleep(int);
 int uptime(void);
 int getyear(void);
 int sysinfo(struct sysinfo*);
+int trace(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

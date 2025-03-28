@@ -20,5 +20,9 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+<<<<<<< HEAD
 #define SYS_getyear 22
 #define SYS_sysinfo 24
+=======
+#define SYS_trace  22
+>>>>>>> origin/trace

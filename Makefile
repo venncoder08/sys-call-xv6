@@ -201,8 +201,8 @@ UPROGS=\
 	$U/_xargs\
 	$U/_test_getyear\
 	$U/_sysinfotest\
-
-
+	$U/_trace\
+	
 ifeq ($(LAB),syscall)
 UPROGS += \
 	$U/_attack\
