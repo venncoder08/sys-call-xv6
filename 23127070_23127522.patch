@@ -1,14 +1,455 @@
 diff --git a/23127070_23127522.patch b/23127070_23127522.patch
 deleted file mode 100644
-index 0cea8ef..0000000
+index 6b986e9..0000000
 --- a/23127070_23127522.patch
 +++ /dev/null
-@@ -1,435 +0,0 @@
+@@ -1,957 +0,0 @@
+-diff --git a/23127070_23127522.patch b/23127070_23127522.patch
+-deleted file mode 100644
+-index 0cea8ef..0000000
+---- a/23127070_23127522.patch
+-+++ /dev/null
+-@@ -1,435 +0,0 @@
+--diff --git a/Makefile b/Makefile
+--index f040908..74e454f 100644
+----- a/Makefile
+--+++ b/Makefile
+--@@ -194,11 +194,8 @@ UPROGS=\
+-- 	$U/_grind\
+-- 	$U/_wc\
+-- 	$U/_zombie\
+---	$U/_sleep\
+---	$U/_pingpong\
+---	$U/_primes\
+---	$U/_find\
+---	$U/_xargs\
+--+
+--+
+-- 
+-- 
+-- ifeq ($(LAB),syscall)
+--diff --git a/user/find.c b/user/find.c
+--deleted file mode 100644
+--index daa40ea..0000000
+----- a/user/find.c
+--+++ /dev/null
+--@@ -1,89 +0,0 @@
+---#include "kernel/types.h"
+---#include "kernel/stat.h"
+---#include "user/user.h"
+---#include "kernel/fs.h"
+---#include "kernel/fcntl.h"
+---
+---void find(char* path, char* file)
+---{
+---    char buffer[512], *p;
+---    int fd;
+---    struct dirent de;
+---    struct stat st;
+---
+---    // Open the path, exit if it fails
+---    if((fd = open(path, O_RDONLY)) < 0)
+---    {
+---        printf("Find: Cannot open %s\n", path);
+---        return;
+---    }
+---
+---    // Get path information, exit if it fails
+---    if(fstat(fd, &st) < 0)
+---    {
+---        printf("Find: Cannot stat %s\n", path);
+---        close(fd);
+---        return;
+---    }
+---
+---    // Check if st is a directory
+---    if(st.type == T_DIR)
+---    {
+---        // Check the length of the file
+---        if(strlen(path) + 1 + DIRSIZ + 1 > sizeof(buffer))
+---        {
+---            printf("Find: path too long\n");
+---        }
+---
+---        // p is a pointer to the buffer path
+---        strcpy(buffer, path);
+---        p = buffer + strlen(buffer);
+---        *p++ = '/';
+---
+---        // Traverse through child objects
+---        while(read(fd, &de, sizeof(de)) == sizeof(de))
+---        {
+---            if(de.inum == 0) continue;
+---
+---            // Create path to child object
+---            memmove(p, de.name, DIRSIZ);
+---            p[DIRSIZ] = 0;
+---
+---            // Do not recurse into "." and ".."
+---            if(strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
+---            {
+---                continue;
+---            }
+---
+---            // Read information of the temporary path
+---            if(stat(buffer, &st) < 0)
+---            {
+---                continue;
+---            }
+---
+---            // Compare file name with the file to find, print to screen if matched
+---            if(strcmp(de.name, file) == 0)
+---            {
+---                printf("%s\n", buffer);
+---            }
+---
+---            // If child object is a directory, recursively call into that directory
+---            if(st.type == T_DIR)
+---            {
+---                find(buffer, file);
+---            }
+---        }
+---        close(fd);
+---    }
+---}
+---
+---int main(int argc, char* argv[])
+---{
+---    if(argc != 3)
+---    {
+---        printf("Usage: find <directory> <filename>\n");
+---        exit(1);
+---    }
+---    find(argv[1], argv[2]);
+---    exit(0);
+---}
+--\ No newline at end of file
+--diff --git a/user/find.c:Zone.Identifier b/user/find.c:Zone.Identifier
+--deleted file mode 100644
+--index a45e1ac..0000000
+----- a/user/find.c:Zone.Identifier
+--+++ /dev/null
+--@@ -1,2 +0,0 @@
+---[ZoneTransfer]
+---ZoneId=3
+--diff --git a/user/pingpong.c b/user/pingpong.c
+--deleted file mode 100644
+--index d29e987..0000000
+----- a/user/pingpong.c
+--+++ /dev/null
+--@@ -1,72 +0,0 @@
+---#include "kernel/types.h"
+---#include "kernel/stat.h"
+---#include "user/user.h"
+---
+---int main(int argc, char* argv[])
+---{
+---    int fd1[2]; // Parent -> Child
+---    int fd2[2]; // Child -> Parent
+---
+---    if(pipe(fd1) < 0 || pipe(fd2) < 0)
+---    {
+---        printf("Pipe failed.\n");
+---        exit(0);
+---    }
+---
+---    int pid = fork();
+---    if(pid < 0)
+---    {
+---        printf("Fork failed.\n");
+---        exit(0);
+---    }
+---
+---    if(pid == 0) // Child process
+---    {
+---        close(fd1[1]); // Close the write end of fd1 (child only reads from fd1)
+---        close(fd2[0]); // Close the read end of fd2 (child only writes to fd2)
+---
+---        char buffer;
+---        if(read(fd1[0], &buffer, sizeof(char)) != 1)
+---        {
+---            printf("Child read failed.\n");
+---            exit(0);
+---        }
+---
+---        printf("%d: received ping\n", getpid()); // Print child's PID with "received ping"
+---
+---        if(write(fd2[1], &buffer, sizeof(char)) != 1)
+---        {
+---            printf("Child write failed.\n");
+---            exit(0);
+---        }
+---
+---        close(fd1[0]);
+---        close(fd2[1]);
+---        exit(0);
+---    }
+---    else // Parent process
+---    {
+---        close(fd1[0]); // Close the read end of fd1 (parent only writes to fd1)
+---        close(fd2[1]); // Close the write end of fd2 (parent only reads from fd2)
+---
+---        char buffer = ';'; // Byte to send
+---        if(write(fd1[1], &buffer, sizeof(char)) != 1)
+---        {
+---            printf("Parent write failed.\n");
+---            exit(0);
+---        }
+---
+---        if(read(fd2[0], &buffer, sizeof(char)) != 1)
+---        {
+---            printf("Parent read failed.\n");
+---            exit(0);
+---        }
+---
+---        printf("%d: received pong\n", getpid()); // Print parent's PID with "received pong"
+---
+---        close(fd1[1]);
+---        close(fd2[0]);
+---        wait(0); // Wait for child process
+---        exit(0);
+---    }
+---}
+--\ No newline at end of file
+--diff --git a/user/pingpong.c:Zone.Identifier b/user/pingpong.c:Zone.Identifier
+--deleted file mode 100644
+--index a45e1ac..0000000
+----- a/user/pingpong.c:Zone.Identifier
+--+++ /dev/null
+--@@ -1,2 +0,0 @@
+---[ZoneTransfer]
+---ZoneId=3
+--diff --git a/user/primes.c b/user/primes.c
+--deleted file mode 100644
+--index 0bd2ce0..0000000
+----- a/user/primes.c
+--+++ /dev/null
+--@@ -1,124 +0,0 @@
+---#include "kernel/types.h"
+---#include "kernel/stat.h"
+---#include "user/user.h"
+---
+---// Prevent program from infinite recursion error.
+---void sieve(int read_fd) __attribute__((noreturn));
+---
+---// Implement the Sieve of Eratosthenes algorithm
+---void sieve(int read_fd)
+---{
+---  int p; // The next prime number
+---  int n; // The number of remaining number read
+---
+---  // Read the first prime number from the pipe
+---  if (read(read_fd, &p, sizeof(int)) <= 0)
+---  {
+---    printf("Failed to read a prime.\n");
+---    exit(0);
+---  }
+---
+---  printf("prime %d\n", p);
+---
+---  // File descriptor array for new pipe
+---  int fd[2];
+---
+---  // Create a new pipe
+---  if (pipe(fd) < 0)
+---  {
+---    printf("Failed to create pipe.\n"); // Print error if pipe creation fails
+---    exit(0);
+---  }
+---
+---  // Create child process
+---  int pid = fork();
+---  if (pid < 0)
+---  {
+---    printf("Failed to fork.\n"); // Print error if fork fails
+---    exit(0);
+---  }
+---
+---  if (pid == 0)
+---  {
+---    close(fd[1]); // Close the write end of the new pipe
+---    close(read_fd); // Close the read end of the old pipe
+---    sieve(fd[0]);
+---  }
+---  else
+---  {
+---    close(fd[0]); // Close the read end of the new pipe
+---
+---    // Read the remaining numbers from the old pipe
+---    while (read(read_fd, &n, sizeof(int)) > 0)
+---    {
+---      // If n is not divisible by p, write it to the new pipe
+---      if (n % p != 0) 
+---      {
+---        if (write(fd[1], &n, sizeof(int)) != sizeof(int))
+---        {
+---          printf(("Failed to write to pipe.\n")); // Print error if write fails
+---          exit(0);
+---        }
+---      }
+---    }
+---
+---    close(fd[1]); // Close the write end of the new pipe
+---    close(read_fd); // Close the read end of the old pipe
+---
+---    // Wait for child process to finish
+---    wait(0);
+---    exit(0);
+---  }
+---}
+---
+---// Main function
+---int main(int argc, char* argv[])
+---{
+---  int fd[2]; // File descriptor array for the first pipe
+---
+---  // Create a pipe
+---  if (pipe(fd) < 0)
+---  {
+---    printf("Failed to create pipe.\n"); // Print error if pipe creation fails
+---    exit(0);
+---  }
+---
+---  // Create child process
+---  int pid = fork();
+---  if (pid < 0)
+---  {
+---    printf("Failed to fork.\n"); // Print error if fork fails
+---    exit(0);
+---  }
+---
+---  // fd[1] - the write end of the pipe
+---  // fd[0] - the read end of the pipe
+---
+---  if (pid == 0) // Child process
+---  {
+---    close(fd[1]); // Close the write end of the pipe
+---    sieve(fd[0]); // Call sieve function with the read end of the pipe
+---  }
+---  else // Parent process
+---  {
+---    close(fd[0]); // Close the read end of the pipe
+---
+---    // Write numbers from 2 to 280 into the pipe
+---    for (int i = 2; i <= 280; ++i)
+---    {
+---      if (write(fd[1], &i, sizeof(int)) != sizeof(int))
+---      {
+---        printf(("Failed to write to pipe.\n")); // Print error if write fails
+---        exit(0);
+---      }
+---    }
+---
+---    close(fd[1]); // Close the write end of the pipe
+---
+---    // Wait for child process to finish
+---    wait(0);
+---    exit(0);
+---  }
+---
+---  return 0;
+---}
+--diff --git a/user/primes.c:Zone.Identifier b/user/primes.c:Zone.Identifier
+--deleted file mode 100644
+--index a45e1ac..0000000
+----- a/user/primes.c:Zone.Identifier
+--+++ /dev/null
+--@@ -1,2 +0,0 @@
+---[ZoneTransfer]
+---ZoneId=3
+--diff --git a/user/sleep.c b/user/sleep.c
+--deleted file mode 100644
+--index cb13b23..0000000
+----- a/user/sleep.c
+--+++ /dev/null
+--@@ -1,19 +0,0 @@
+---#include "kernel/types.h"
+---#include "kernel/stat.h"
+---#include "user/user.h"
+---
+---int main(int argc, char *argv[]) {
+---    if (argc != 2) {
+---        fprintf(2, "Usage: sleep <seconds>\n");
+---        exit(1);
+---    }
+---
+---    int seconds = atoi(argv[1]);
+---    if (seconds < 0) {
+---        fprintf(2, "Error: Invalid number of seconds\n");
+---        exit(1);
+---    }
+---
+---    sleep(seconds);
+---    exit(0);
+---}
+--\ No newline at end of file
+--diff --git a/user/xargs.c b/user/xargs.c
+--deleted file mode 100644
+--index 4b74646..0000000
+----- a/user/xargs.c
+--+++ /dev/null
+--@@ -1,47 +0,0 @@
+---#include "kernel/param.h"
+---#include "kernel/types.h"
+---#include "kernel/stat.h"
+---#include "user/user.h"
+---
+---int main(int argc, char* argv[])
+---{
+---    char buffer[512];
+---    char* newargv[MAXARG];
+---    int newargc = argc - 1; // Number of arguments excluding program name
+---
+---    // Copy initial arguments into newargv
+---    for (int i = 0; i < newargc; ++i) {
+---        newargv[i] = argv[i + 1];
+---    }
+---
+---    int idx = 0;
+---    // Read input from stdin and process it line by line
+---    while (read(0, &buffer[idx], sizeof(char)) > 0) {
+---        if (buffer[idx] == '\n' || idx == sizeof(buffer) - 1)
+---            {
+---            buffer[idx] = 0; // Null-terminate the string
+---            if (idx > 0 && buffer[idx - 1] == '\n') {
+---                buffer[idx - 1] = 0; // Remove extra newline
+---            }
+---
+---            // Add the new argument to newargv
+---            newargv[newargc] = buffer;
+---            newargv[newargc + 1] = 0; // Terminate the argument list
+---
+---            // Fork a new process and execute the command
+---            if (fork() == 0) {
+---                if (exec(newargv[0], newargv) < 0) {
+---                    printf("exec failed\n");
+---                    exit(1); // Exit child process with error
+---                }
+---            }
+---
+---            wait(0); // Wait for the child process to finish
+---            idx = 0; // Reset index for next line
+---        } else {
+---            ++idx;
+---        }
+---    }
+---
+---    exit(0);
+---}
+--\ No newline at end of file
+--diff --git a/user/xargs.c:Zone.Identifier b/user/xargs.c:Zone.Identifier
+--deleted file mode 100644
+--index a45e1ac..0000000
+----- a/user/xargs.c:Zone.Identifier
+--+++ /dev/null
+--@@ -1,2 +0,0 @@
+---[ZoneTransfer]
+---ZoneId=3
 -diff --git a/Makefile b/Makefile
--index f040908..74e454f 100644
+-index db2823c..74e454f 100644
 ---- a/Makefile
 -+++ b/Makefile
--@@ -194,11 +194,8 @@ UPROGS=\
+-@@ -194,12 +194,7 @@ UPROGS=\
 - 	$U/_grind\
 - 	$U/_wc\
 - 	$U/_zombie\
@@ -17,11 +458,55 @@ index 0cea8ef..0000000
 --	$U/_primes\
 --	$U/_find\
 --	$U/_xargs\
--+
+--	$U/_test_getyear\
 -+
 - 
 - 
-- ifeq ($(LAB),syscall)
+- 
+-diff --git a/kernel/syscall.c b/kernel/syscall.c
+-index b478d97..ed65409 100644
+---- a/kernel/syscall.c
+-+++ b/kernel/syscall.c
+-@@ -101,7 +101,6 @@ extern uint64 sys_unlink(void);
+- extern uint64 sys_link(void);
+- extern uint64 sys_mkdir(void);
+- extern uint64 sys_close(void);
+--extern uint64 sys_getyear(void);
+- 
+- // An array mapping syscall numbers from syscall.h
+- // to the function that handles the system call.
+-@@ -127,7 +126,6 @@ static uint64 (*syscalls[])(void) = {
+- [SYS_link]    sys_link,
+- [SYS_mkdir]   sys_mkdir,
+- [SYS_close]   sys_close,
+--[SYS_getyear] sys_getyear,
+- };
+- 
+- void
+-diff --git a/kernel/syscall.h b/kernel/syscall.h
+-index 119e4cf..bc5f356 100644
+---- a/kernel/syscall.h
+-+++ b/kernel/syscall.h
+-@@ -20,4 +20,3 @@
+- #define SYS_link   19
+- #define SYS_mkdir  20
+- #define SYS_close  21
+--#define SYS_getyear 22
+-diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+-index 826b1ac..3b4d5bd 100644
+---- a/kernel/sysproc.c
+-+++ b/kernel/sysproc.c
+-@@ -91,9 +91,3 @@ sys_uptime(void)
+-   release(&tickslock);
+-   return xticks;
+- }
+--
+--uint64
+--sys_getyear(void)
+--{
+--  return 1975;
+--}
+-\ No newline at end of file
 -diff --git a/user/find.c b/user/find.c
 -deleted file mode 100644
 -index daa40ea..0000000
@@ -377,6 +862,43 @@ index 0cea8ef..0000000
 --    exit(0);
 --}
 -\ No newline at end of file
+-diff --git a/user/test_getyear.c b/user/test_getyear.c
+-deleted file mode 100644
+-index 6e9e976..0000000
+---- a/user/test_getyear.c
+-+++ /dev/null
+-@@ -1,8 +0,0 @@
+--#include "kernel/types.h"
+--#include "kernel/stat.h"
+--#include "user/user.h"
+--
+--int main(void) {
+--    printf("Note: Unix V6 was released in year %d\n", getyear());
+--    exit(0);
+--}
+-\ No newline at end of file
+-diff --git a/user/user.h b/user/user.h
+-index 617b9f8..f16fe27 100644
+---- a/user/user.h
+-+++ b/user/user.h
+-@@ -22,7 +22,6 @@ int getpid(void);
+- char* sbrk(int);
+- int sleep(int);
+- int uptime(void);
+--int getyear(void);
+- 
+- // ulib.c
+- int stat(const char*, struct stat*);
+-diff --git a/user/usys.pl b/user/usys.pl
+-index df8412d..01e426e 100755
+---- a/user/usys.pl
+-+++ b/user/usys.pl
+-@@ -36,4 +36,3 @@ entry("getpid");
+- entry("sbrk");
+- entry("sleep");
+- entry("uptime");
+--entry("getyear");
+-\ No newline at end of file
 -diff --git a/user/xargs.c b/user/xargs.c
 -deleted file mode 100644
 -index 4b74646..0000000
@@ -440,10 +962,10 @@ index 0cea8ef..0000000
 --[ZoneTransfer]
 --ZoneId=3
 diff --git a/Makefile b/Makefile
-index db2823c..74e454f 100644
+index 9c56252..74e454f 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -194,12 +194,7 @@ UPROGS=\
+@@ -194,15 +194,10 @@ UPROGS=\
  	$U/_grind\
  	$U/_wc\
  	$U/_zombie\
@@ -453,44 +975,423 @@ index db2823c..74e454f 100644
 -	$U/_find\
 -	$U/_xargs\
 -	$U/_test_getyear\
+-	$U/_sysinfotest\
+-	$U/_trace\
+-	
 +
++
++
++
+ ifeq ($(LAB),syscall)
+ UPROGS += \
+ 	$U/_attack\
+diff --git a/README b/README
+index f583201..5a5d695 100644
+--- a/README
++++ b/README
+@@ -31,6 +31,9 @@ Rafael Ubal, Amane Uehara, Pablo Ventura, Xi Wang, WaheedHafez,
+ Keiichi Watanabe, Lucas Wolf, Nicolas Wolovick, wxdao, Grant Wu, x653,
+ Jindong Zhang, Icenowy Zheng, ZhUyU1997, and Zou Chang Wei.
  
++The code in the files that constitute xv6 is
++Copyright 2006-2024 Frans Kaashoek, Robert Morris, and Russ Cox.
++
+ ERROR REPORTS
  
+ Please send errors and suggestions to Frans Kaashoek and Robert Morris
+diff --git a/README.md b/README.md
+deleted file mode 100644
+index 38cf7a1..0000000
+--- a/README.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-# CSC10007-Operating System-Lab 02 system-call-xv6
+-
+diff --git a/conf/lab.mk b/conf/lab.mk
+index 92b079e..05e8b8d 100644
+--- a/conf/lab.mk
++++ b/conf/lab.mk
+@@ -1,2 +1 @@
+-LAB=syscall
+-LAB=util
+\ No newline at end of file
++LAB=util
+diff --git a/grade-lab-syscall b/grade-lab-syscall
+deleted file mode 100755
+index 928369e..0000000
+--- a/grade-lab-syscall
++++ /dev/null
+@@ -1,82 +0,0 @@
+-#!/usr/bin/env python3
+-
+-import re
+-from gradelib import *
+-
+-r = Runner(save("xv6.out"))
+-
+-@test(5, "answers-syscall.txt")
+-def test_answers():
+-    # just a simple sanity check, will be graded manually
+-    check_answers("answers-syscall.txt")
+-
+-@test(5, "trace 32 grep")
+-def test_trace_32_grep():
+-    r.run_qemu(shell_script([
+-        'trace 32 grep hello README'
+-    ]))
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> 0')
+-
+-@test(5, "trace close grep")
+-def test_trace_close_grep():
+-    r.run_qemu(shell_script(['trace 2097152 grep hello README']))
+-    r.match('^\\d+: syscall close -> 0')
+-    r.match(no=[".* syscall read .*"])
+-
+-@test(5, "trace exec + open grep")
+-def test_trace_exec_open_grep():
+-    r.run_qemu(shell_script(['trace 32896 grep hello README']))
+-    r.match('^\\d+: syscall exec -> 3')
+-    r.match('^\\d+: syscall open -> 3')
+-    r.match(no=[".* syscall read .*"])
+-
+-@test(5, "trace all grep")
+-def test_trace_all_grep():
+-    r.run_qemu(shell_script([
+-        'trace 2147483647 grep hello README'
+-    ]))
+-    r.match('^\\d+: syscall trace -> 0')
+-    r.match('^\\d+: syscall exec -> 3')
+-    r.match('^\\d+: syscall open -> 3')
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> \\d+')
+-    r.match('^\\d+: syscall read -> 0')
+-    r.match('^\\d+: syscall close -> 0')
+-
+-@test(5, "trace nothing")
+-def test_trace_nothing():
+-    r.run_qemu(shell_script([
+-        'grep hello README'
+-    ]))
+-    r.match(no=[".* syscall .*"])
+-
+-@test(5, "trace children")
+-def test_trace_children():
+-    r.run_qemu(shell_script([
+-        'trace 2 usertests forkforkfork'
+-    ]))
+-    r.match('3: syscall fork -> 4')
+-    r.match('^5: syscall fork -> \\d+')
+-    r.match('^6: syscall fork -> \\d+')
+-    r.match('^\\d+: syscall fork -> -1')
+-    r.match('^OK')
+-
+-@test(14, "attack")
+-def test_attack():
+-    r.run_qemu(shell_script([
+-        'attacktest'
+-    ]))
+-    r.match('^OK: secret is')
+-
+-@test(1, "time")
+-def test_time():
+-    check_time()
+-
+-run_tests()
+-
+-
+-
+diff --git a/kernel/defs.h b/kernel/defs.h
+index 08f4086..d1b6bb9 100644
+--- a/kernel/defs.h
++++ b/kernel/defs.h
+@@ -63,7 +63,6 @@ void            ramdiskrw(struct buf*);
+ void*           kalloc(void);
+ void            kfree(void *);
+ void            kinit(void);
+-uint64          get_free_memory(void);
+ 
+ // log.c
+ void            initlog(int, struct superblock*);
+@@ -107,7 +106,6 @@ void            yield(void);
+ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
+ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
+ void            procdump(void);
+-uint64          get_number_of_process(void);
+ 
+ // swtch.S
+ void            swtch(struct context*, struct context*);
+diff --git a/kernel/kalloc.c b/kernel/kalloc.c
+index 2214997..0699e7e 100644
+--- a/kernel/kalloc.c
++++ b/kernel/kalloc.c
+@@ -30,16 +30,13 @@ kinit()
+   freerange(end, (void*)PHYSTOP);
+ }
+ 
+-
+-
+ void
+ freerange(void *pa_start, void *pa_end)
+ {
+   char *p;
+   p = (char*)PGROUNDUP((uint64)pa_start);
+-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
++  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+     kfree(p);
+-  }
+ }
+ 
+ // Free the page of physical memory pointed at by pa,
+@@ -54,12 +51,9 @@ kfree(void *pa)
+   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+     panic("kfree");
+ 
+-
+-#ifndef LAB_SYSCALL
+   // Fill with junk to catch dangling refs.
+   memset(pa, 1, PGSIZE);
+-#endif
+-  
++
+   r = (struct run*)pa;
+ 
+   acquire(&kmem.lock);
+@@ -68,8 +62,6 @@ kfree(void *pa)
+   release(&kmem.lock);
+ }
+ 
+-
+-
+ // Allocate one 4096-byte page of physical memory.
+ // Returns a pointer that the kernel can use.
+ // Returns 0 if the memory cannot be allocated.
+@@ -80,27 +72,11 @@ kalloc(void)
+ 
+   acquire(&kmem.lock);
+   r = kmem.freelist;
+-  if(r) {
++  if(r)
+     kmem.freelist = r->next;
+-  }
+   release(&kmem.lock);
+-#ifndef LAB_SYSCALL
++
+   if(r)
+     memset((char*)r, 5, PGSIZE); // fill with junk
+-#endif
+   return (void*)r;
+ }
+-
+-uint64
+-get_free_memory(void)
+-{
+-  uint64 free_mem = 0;
+-  struct run* r;
+-
+-  acquire(&kmem.lock);
+-  for (r = kmem.freelist; r; r = r->next)
+-    free_mem += PGSIZE;
+-  release(&kmem.lock);
+-
+-  return free_mem;
+-}
+\ No newline at end of file
+diff --git a/kernel/proc.c b/kernel/proc.c
+index 8a2c43e..130d9ce 100644
+--- a/kernel/proc.c
++++ b/kernel/proc.c
+@@ -119,8 +119,6 @@ allocproc(void)
+       release(&p->lock);
+     }
+   }
+-  p->trace_mask = 0;
+-  p->trace_silent = 0;
+   return 0;
+ 
+ found:
+@@ -324,11 +322,6 @@ fork(void)
+   np->state = RUNNABLE;
+   release(&np->lock);
+ 
+-  // **Copy trace_mask từ parent sang child**
+-  p->pid = allocpid();
+-  p->trace_mask = myproc()->trace_mask;
+-  p->trace_silent = myproc()->trace_silent;
+-
+   return pid;
+ }
+ 
+@@ -700,20 +693,3 @@ procdump(void)
+     printf("\n");
+   }
+ }
+-
+-uint64
+-get_number_of_process(void)
+-{
+-  uint64 count = 0;
+-  struct proc *p;
+-
+-  for (p = proc; p < &proc[NPROC]; ++p) {
+-    acquire(&p->lock);
+-    if (p->state != UNUSED) {
+-      ++count;
+-    }
+-    release(&p->lock);
+-  }
+-
+-  return count;
+-}
+diff --git a/kernel/proc.h b/kernel/proc.h
+index 2beecca..d021857 100644
+--- a/kernel/proc.h
++++ b/kernel/proc.h
+@@ -91,9 +91,7 @@ struct proc {
+   int killed;                  // If non-zero, have been killed
+   int xstate;                  // Exit status to be returned to parent's wait
+   int pid;                     // Process ID
+-  int trace_mask;
+-  int trace_silent;
+-  
++
+   // wait_lock must be held when using this:
+   struct proc *parent;         // Parent process
+ 
+diff --git a/kernel/riscv.h b/kernel/riscv.h
+index 932d2cb..6cfff1e 100644
+--- a/kernel/riscv.h
++++ b/kernel/riscv.h
+@@ -204,7 +204,7 @@ r_menvcfg()
+ static inline void 
+ w_menvcfg(uint64 x)
+ {
+-  // asm volatile("csrw menvcfg, %0" : : "r" (x));
++  //asm volatile("csrw menvcfg, %0" : : "r" (x));
+   asm volatile("csrw 0x30a, %0" : : "r" (x));
+ }
  
 diff --git a/kernel/syscall.c b/kernel/syscall.c
-index b478d97..ed65409 100644
+index 0c06890..ed65409 100644
 --- a/kernel/syscall.c
 +++ b/kernel/syscall.c
-@@ -101,7 +101,6 @@ extern uint64 sys_unlink(void);
+@@ -101,9 +101,6 @@ extern uint64 sys_unlink(void);
  extern uint64 sys_link(void);
  extern uint64 sys_mkdir(void);
  extern uint64 sys_close(void);
 -extern uint64 sys_getyear(void);
+-extern uint64 sys_sysinfo(void);
+-extern uint64 sys_trace(void);
  
  // An array mapping syscall numbers from syscall.h
  // to the function that handles the system call.
-@@ -127,7 +126,6 @@ static uint64 (*syscalls[])(void) = {
+@@ -129,56 +126,22 @@ static uint64 (*syscalls[])(void) = {
  [SYS_link]    sys_link,
  [SYS_mkdir]   sys_mkdir,
  [SYS_close]   sys_close,
 -[SYS_getyear] sys_getyear,
+-[SYS_sysinfo] sys_sysinfo,
+-[SYS_trace]   sys_trace,
+-
+-};
+-
+-static char *syscall_names[] = {
+-  [SYS_fork]    "fork",
+-  [SYS_exit]    "exit",
+-  [SYS_wait]    "wait",
+-  [SYS_pipe]    "pipe",
+-  [SYS_read]    "read",
+-  [SYS_kill]    "kill",
+-  [SYS_exec]    "exec",
+-  [SYS_fstat]   "fstat",
+-  [SYS_chdir]   "chdir",
+-  [SYS_dup]     "dup",
+-  [SYS_getpid]  "getpid",
+-  [SYS_sbrk]    "sbrk",
+-  [SYS_sleep]   "sleep",
+-  [SYS_uptime]  "uptime",
+-  [SYS_open]    "open",
+-  [SYS_write]   "write",
+-  [SYS_mknod]   "mknod",
+-  [SYS_unlink]  "unlink",
+-  [SYS_link]    "link",
+-  [SYS_mkdir]   "mkdir",
+-  [SYS_close]   "close",
+-  [SYS_trace]   "trace",
  };
  
  void
+ syscall(void)
+ {
+-    int num;
+-    struct proc *p = myproc();
+-    
+-    num = p->trapframe->a7;  // Syscall number
+-    
+-    // Pointer to the syscall return function
+-    uint64 (*syscall)(void) = syscalls[num];
+-    
+-    // Perform the syscall
+-    p->trapframe->a0 = syscall();
+-    
+-    // Check if this syscall should be traced and not silent
+-    if((p->trace_mask & (1 << num)) && !p->trace_silent) {
+-        printf("%d: syscall %s -> %ld\n", 
+-               p->pid, 
+-               syscall_names[num],
+-               p->trapframe->a0);
+-    }
++  int num;
++  struct proc *p = myproc();
++
++  num = p->trapframe->a7;
++  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
++    // Use num to lookup the system call function for num, call it,
++    // and store its return value in p->trapframe->a0
++    p->trapframe->a0 = syscalls[num]();
++  } else {
++    printf("%d %s: unknown sys call %d\n",
++            p->pid, p->name, num);
++    p->trapframe->a0 = -1;
++  }
+ }
 diff --git a/kernel/syscall.h b/kernel/syscall.h
-index 119e4cf..bc5f356 100644
+index 720dee0..bc5f356 100644
 --- a/kernel/syscall.h
 +++ b/kernel/syscall.h
-@@ -20,4 +20,3 @@
+@@ -20,6 +20,3 @@
  #define SYS_link   19
  #define SYS_mkdir  20
  #define SYS_close  21
 -#define SYS_getyear 22
+-#define SYS_trace  23
+-#define SYS_sysinfo 24
+diff --git a/kernel/sysinfo.h b/kernel/sysinfo.h
+deleted file mode 100644
+index fb878e6..0000000
+--- a/kernel/sysinfo.h
++++ /dev/null
+@@ -1,4 +0,0 @@
+-struct sysinfo {
+-  uint64 freemem;   // amount of free memory (bytes)
+-  uint64 nproc;     // number of process
+-};
 diff --git a/kernel/sysproc.c b/kernel/sysproc.c
-index 826b1ac..3b4d5bd 100644
+index fda48ff..3b4d5bd 100644
 --- a/kernel/sysproc.c
 +++ b/kernel/sysproc.c
-@@ -91,9 +91,3 @@ sys_uptime(void)
+@@ -5,7 +5,6 @@
+ #include "memlayout.h"
+ #include "spinlock.h"
+ #include "proc.h"
+-#include "sysinfo.h"
+ 
+ uint64
+ sys_exit(void)
+@@ -92,38 +91,3 @@ sys_uptime(void)
    release(&tickslock);
    return xticks;
  }
@@ -500,7 +1401,342 @@ index 826b1ac..3b4d5bd 100644
 -{
 -  return 1975;
 -}
-\ No newline at end of file
+-
+-uint64
+-sys_sysinfo(void)
+-{
+-  struct sysinfo info;
+-  uint64 addr;
+-  struct proc *p = myproc();
+-
+-  argaddr(0, &addr);
+-
+-  info.freemem = get_free_memory();
+-  info.nproc = get_number_of_process();
+-
+-  if (copyout(p->pagetable, addr, (char*) &info, sizeof(info)) < 0) {
+-    return -1;
+-  }
+-
+-  return 0;
+-}
+-
+-uint64
+-sys_trace(void)
+-{
+-  int mask;
+-  argint(0, &mask);
+-  struct proc *p = myproc();
+-  p->trace_mask = mask;
+-  return 0;
+-}
+diff --git a/kernel/vm.c b/kernel/vm.c
+index 7f388fe..62421a2 100644
+--- a/kernel/vm.c
++++ b/kernel/vm.c
+@@ -4,8 +4,6 @@
+ #include "elf.h"
+ #include "riscv.h"
+ #include "defs.h"
+-#include "spinlock.h"
+-#include "proc.h"
+ #include "fs.h"
+ 
+ /*
+@@ -32,14 +30,6 @@ kvmmake(void)
+   // virtio mmio disk interface
+   kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+ 
+-#ifdef LAB_NET
+-  // PCI-E ECAM (configuration space), for pci.c
+-  kvmmap(kpgtbl, 0x30000000L, 0x30000000L, 0x10000000, PTE_R | PTE_W);
+-
+-  // pci.c maps the e1000's registers here.
+-  kvmmap(kpgtbl, 0x40000000L, 0x40000000L, 0x20000, PTE_R | PTE_W);
+-#endif  
+-
+   // PLIC
+   kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+ 
+@@ -102,11 +92,6 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
+     pte_t *pte = &pagetable[PX(level, va)];
+     if(*pte & PTE_V) {
+       pagetable = (pagetable_t)PTE2PA(*pte);
+-#ifdef LAB_PGTBL
+-      if(PTE_LEAF(*pte)) {
+-        return pte;
+-      }
+-#endif
+     } else {
+       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+         return 0;
+@@ -140,7 +125,6 @@ walkaddr(pagetable_t pagetable, uint64 va)
+   return pa;
+ }
+ 
+-
+ // add a mapping to the kernel page table.
+ // only used when booting.
+ // does not flush TLB or enable paging.
+@@ -195,19 +179,15 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+ {
+   uint64 a;
+   pte_t *pte;
+-  int sz;
+ 
+   if((va % PGSIZE) != 0)
+     panic("uvmunmap: not aligned");
+ 
+-  for(a = va; a < va + npages*PGSIZE; a += sz){
+-    sz = PGSIZE;
++  for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+     if((pte = walk(pagetable, a, 0)) == 0)
+       panic("uvmunmap: walk");
+-    if((*pte & PTE_V) == 0) {
+-      printf("va=%ld pte=%ld\n", a, *pte);
++    if((*pte & PTE_V) == 0)
+       panic("uvmunmap: not mapped");
+-    }
+     if(PTE_FLAGS(*pte) == PTE_V)
+       panic("uvmunmap: not a leaf");
+     if(do_free){
+@@ -247,7 +227,6 @@ uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
+   memmove(mem, src, sz);
+ }
+ 
+-
+ // Allocate PTEs and physical memory to grow process from oldsz to
+ // newsz, which need not be page aligned.  Returns new size or 0 on error.
+ uint64
+@@ -255,23 +234,19 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+ {
+   char *mem;
+   uint64 a;
+-  int sz;
+ 
+   if(newsz < oldsz)
+     return oldsz;
+ 
+   oldsz = PGROUNDUP(oldsz);
+-  for(a = oldsz; a < newsz; a += sz){
+-    sz = PGSIZE;
++  for(a = oldsz; a < newsz; a += PGSIZE){
+     mem = kalloc();
+     if(mem == 0){
+       uvmdealloc(pagetable, a, oldsz);
+       return 0;
+     }
+-#ifndef LAB_SYSCALL
+-    memset(mem, 0, sz);
+-#endif
+-    if(mappages(pagetable, a, sz, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
++    memset(mem, 0, PGSIZE);
++    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
+       kfree(mem);
+       uvmdealloc(pagetable, a, oldsz);
+       return 0;
+@@ -341,11 +316,8 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+   uint64 pa, i;
+   uint flags;
+   char *mem;
+-  int szinc;
+ 
+-  for(i = 0; i < sz; i += szinc){
+-    szinc = PGSIZE;
+-    szinc = PGSIZE;
++  for(i = 0; i < sz; i += PGSIZE){
+     if((pte = walk(old, i, 0)) == 0)
+       panic("uvmcopy: pte should exist");
+     if((*pte & PTE_V) == 0)
+@@ -391,21 +363,13 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+ 
+   while(len > 0){
+     va0 = PGROUNDDOWN(dstva);
+-    if (va0 >= MAXVA)
+-      return -1;
+-    if((pte = walk(pagetable, va0, 0)) == 0) {
+-      // printf("copyout: pte should exist 0x%x %d\n", dstva, len);
+-      return -1;
+-    }
+-
+-
+-    // forbid copyout over read-only user text pages.
+-    if((*pte & PTE_W) == 0)
++    if(va0 >= MAXVA)
+       return -1;
+-    
+-    pa0 = walkaddr(pagetable, va0);
+-    if(pa0 == 0)
++    pte = walk(pagetable, va0, 0);
++    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
++       (*pte & PTE_W) == 0)
+       return -1;
++    pa0 = PTE2PA(*pte);
+     n = PGSIZE - (dstva - va0);
+     if(n > len)
+       n = len;
+@@ -425,7 +389,7 @@ int
+ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+ {
+   uint64 n, va0, pa0;
+-  
++
+   while(len > 0){
+     va0 = PGROUNDDOWN(srcva);
+     pa0 = walkaddr(pagetable, va0);
+@@ -485,20 +449,3 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+     return -1;
+   }
+ }
+-
+-
+-#ifdef LAB_PGTBL
+-void
+-vmprint(pagetable_t pagetable) {
+-  // your code here
+-}
+-#endif
+-
+-
+-
+-#ifdef LAB_PGTBL
+-pte_t*
+-pgpte(pagetable_t pagetable, uint64 va) {
+-  return walk(pagetable, va, 0);
+-}
+-#endif
+diff --git a/user/attack.c b/user/attack.c
+deleted file mode 100644
+index 928e7d0..0000000
+--- a/user/attack.c
++++ /dev/null
+@@ -1,13 +0,0 @@
+-#include "kernel/types.h"
+-#include "kernel/fcntl.h"
+-#include "user/user.h"
+-#include "kernel/riscv.h"
+-
+-int
+-main(int argc, char *argv[])
+-{
+-  // your code here.  you should write the secret to fd 2 using write
+-  // (e.g., write(2, secret, 8)
+-
+-  exit(1);
+-}
+diff --git a/user/attacktest.c b/user/attacktest.c
+deleted file mode 100644
+index 6853b62..0000000
+--- a/user/attacktest.c
++++ /dev/null
+@@ -1,107 +0,0 @@
+-#include "kernel/types.h"
+-#include "kernel/fcntl.h"
+-#include "user/user.h"
+-#include "kernel/riscv.h"
+-
+-char secret[8];
+-char output[64];
+-
+-// from FreeBSD.
+-int
+-do_rand(unsigned long *ctx)
+-{
+-/*
+- * Compute x = (7^5 * x) mod (2^31 - 1)
+- * without overflowing 31 bits:
+- *      (2^31 - 1) = 127773 * (7^5) + 2836
+- * From "Random number generators: good ones are hard to find",
+- * Park and Miller, Communications of the ACM, vol. 31, no. 10,
+- * October 1988, p. 1195.
+- */
+-    long hi, lo, x;
+-
+-    /* Transform to [1, 0x7ffffffe] range. */
+-    x = (*ctx % 0x7ffffffe) + 1;
+-    hi = x / 127773;
+-    lo = x % 127773;
+-    x = 16807 * lo - 2836 * hi;
+-    if (x < 0)
+-        x += 0x7fffffff;
+-    /* Transform to [0, 0x7ffffffd] range. */
+-    x--;
+-    *ctx = x;
+-    return (x);
+-}
+-
+-unsigned long rand_next = 1;
+-
+-int
+-rand(void)
+-{
+-    return (do_rand(&rand_next));
+-}
+-
+-// generate a random string of the indicated length.
+-char *
+-randstring(char *buf, int n)
+-{
+-  for(int i = 0; i < n-1; i++) {
+-    buf[i] = "./abcdef"[(rand() >> 7) % 8];
+-  }
+-  if(n > 0)
+-    buf[n-1] = '\0';
+-  return buf;
+-}
+-
+-int
+-main(int argc, char *argv[])
+-{
+-  int pid;
+-  int fds[2];
+-
+-  // an insecure way of generating a random string, because xv6
+-  // doesn't have good source of randomness.
+-  rand_next = uptime();
+-  randstring(secret, 8);
+-  
+-  if((pid = fork()) < 0) {
+-    printf("fork failed\n");
+-    exit(1);   
+-  }
+-  if(pid == 0) {
+-    char *newargv[] = { "secret", secret, 0 };
+-    exec(newargv[0], newargv);
+-    printf("exec %s failed\n", newargv[0]);
+-    exit(1);
+-  } else {
+-    wait(0);  // wait for secret to exit
+-    if(pipe(fds) < 0) {
+-      printf("pipe failed\n");
+-      exit(1);   
+-    }
+-    if((pid = fork()) < 0) {
+-      printf("fork failed\n");
+-      exit(1);   
+-    }
+-    if(pid == 0) {
+-      close(fds[0]);
+-      close(2);
+-      dup(fds[1]);
+-      char *newargv[] = { "attack", 0 };
+-      exec(newargv[0], newargv);
+-      printf("exec %s failed\n", newargv[0]);
+-      exit(1);
+-    } else {
+-       close(fds[1]);
+-      if(read(fds[0], output, 64) < 0) {
+-        printf("FAIL; read failed; no secret\n");
+-        exit(1);
+-      }
+-      if(strcmp(secret, output) == 0) {
+-        printf("OK: secret is %s\n", output);
+-      } else {
+-        printf("FAIL: no/incorrect secret\n");
+-      }
+-    }
+-  }
+-}
 diff --git a/user/find.c b/user/find.c
 deleted file mode 100644
 index daa40ea..0000000
@@ -830,6 +2066,32 @@ index a45e1ac..0000000
 @@ -1,2 +0,0 @@
 -[ZoneTransfer]
 -ZoneId=3
+diff --git a/user/secret.c b/user/secret.c
+deleted file mode 100644
+index 77378f4..0000000
+--- a/user/secret.c
++++ /dev/null
+@@ -1,20 +0,0 @@
+-#include "kernel/types.h"
+-#include "kernel/fcntl.h"
+-#include "user/user.h"
+-#include "kernel/riscv.h"
+-
+-
+-int
+-main(int argc, char *argv[])
+-{
+-  if(argc != 2){
+-    printf("Usage: secret the-secret\n");
+-    exit(1);
+-  }
+-  char *end = sbrk(PGSIZE*32);
+-  end = end + 9 * PGSIZE;
+-  strcpy(end, "my very very very secret pw is:   ");
+-  strcpy(end+32, argv[1]);
+-  exit(0);
+-}
+-
 diff --git a/user/sleep.c b/user/sleep.c
 deleted file mode 100644
 index cb13b23..0000000
@@ -856,6 +2118,165 @@ index cb13b23..0000000
 -    exit(0);
 -}
 \ No newline at end of file
+diff --git a/user/sysinfotest.c b/user/sysinfotest.c
+deleted file mode 100644
+index a92d10a..0000000
+--- a/user/sysinfotest.c
++++ /dev/null
+@@ -1,153 +0,0 @@
+-#include "kernel/types.h"
+-#include "kernel/riscv.h"
+-#include "kernel/sysinfo.h"
+-#include "user/user.h"
+-
+-
+-void
+-sinfo(struct sysinfo *info) {
+-  if (sysinfo(info) < 0) {
+-    printf("FAIL: sysinfo failed");
+-    exit(1);
+-  }
+-}
+-
+-//
+-// use sbrk() to count how many free physical memory pages there are.
+-//
+-int
+-countfree()
+-{
+-  uint64 sz0 = (uint64)sbrk(0);
+-  struct sysinfo info;
+-  int n = 0;
+-
+-  while(1){
+-    if((uint64)sbrk(PGSIZE) == 0xffffffffffffffff){
+-      break;
+-    }
+-    n += PGSIZE;
+-  }
+-  sinfo(&info);
+-  if (info.freemem != 0) {
+-    printf("FAIL: there is no free mem, but sysinfo.freemem=%ld\n",
+-      info.freemem);
+-    exit(1);
+-  }
+-  sbrk(-((uint64)sbrk(0) - sz0));
+-  return n;
+-}
+-
+-void
+-testmem() {
+-  struct sysinfo info;
+-  uint64 n = countfree();
+-  
+-  sinfo(&info);
+-
+-  if (info.freemem!= n) {
+-    printf("FAIL: free mem %ld (bytes) instead of %ld\n", info.freemem, n);
+-    exit(1);
+-  }
+-  
+-  if((uint64)sbrk(PGSIZE) == 0xffffffffffffffff){
+-    printf("sbrk failed");
+-    exit(1);
+-  }
+-
+-  sinfo(&info);
+-    
+-  if (info.freemem != n-PGSIZE) {
+-    printf("FAIL: free mem %ld (bytes) instead of %ld\n", n-PGSIZE, info.freemem);
+-    exit(1);
+-  }
+-  
+-  if((uint64)sbrk(-PGSIZE) == 0xffffffffffffffff){
+-    printf("sbrk failed");
+-    exit(1);
+-  }
+-
+-  sinfo(&info);
+-    
+-  if (info.freemem != n) {
+-    printf("FAIL: free mem %ld (bytes) instead of %ld\n", n, info.freemem);
+-    exit(1);
+-  }
+-}
+-
+-void
+-testcall() {
+-  struct sysinfo info;
+-  
+-  if (sysinfo(&info) < 0) {
+-    printf("FAIL: sysinfo failed\n");
+-    exit(1);
+-  }
+-
+-  if (sysinfo((struct sysinfo *) 0xeaeb0b5b00002f5e) !=  0xffffffffffffffff) {
+-    printf("FAIL: sysinfo succeeded with bad argument\n");
+-    exit(1);
+-  }
+-}
+-
+-void testproc() {
+-  struct sysinfo info;
+-  uint64 nproc;
+-  int status;
+-  int pid;
+-  
+-  sinfo(&info);
+-  nproc = info.nproc;
+-
+-  pid = fork();
+-  if(pid < 0){
+-    printf("sysinfotest: fork failed\n");
+-    exit(1);
+-  }
+-  if(pid == 0){
+-    sinfo(&info);
+-    if(info.nproc != nproc+1) {
+-      printf("sysinfotest: FAIL nproc is %ld instead of %ld\n", info.nproc, nproc+1);
+-      exit(1);
+-    }
+-    exit(0);
+-  }
+-  wait(&status);
+-  sinfo(&info);
+-  if(info.nproc != nproc) {
+-      printf("sysinfotest: FAIL nproc is %ld instead of %ld\n", info.nproc, nproc);
+-      exit(1);
+-  }
+-}
+-
+-void testbad() {
+-  int pid = fork();
+-  int xstatus;
+-  
+-  if(pid < 0){
+-    printf("sysinfotest: fork failed\n");
+-    exit(1);
+-  }
+-  if(pid == 0){
+-      sinfo(0x0);
+-      exit(0);
+-  }
+-  wait(&xstatus);
+-  if(xstatus == -1)  // kernel killed child?
+-    exit(0);
+-  else {
+-    printf("sysinfotest: testbad succeeded %d\n", xstatus);
+-    exit(xstatus);
+-  }
+-}
+-
+-int
+-main(int argc, char *argv[])
+-{
+-  printf("sysinfotest: start\n");
+-  testcall();
+-  testmem();
+-  testproc();
+-  printf("sysinfotest: OK\n");
+-  exit(0);
+-}
 diff --git a/user/test_getyear.c b/user/test_getyear.c
 deleted file mode 100644
 index 6e9e976..0000000
@@ -871,28 +2292,67 @@ index 6e9e976..0000000
 -    exit(0);
 -}
 \ No newline at end of file
+diff --git a/user/trace.c b/user/trace.c
+deleted file mode 100644
+index b41260c..0000000
+--- a/user/trace.c
++++ /dev/null
+@@ -1,22 +0,0 @@
+-#include "../kernel/types.h"
+-#include "../kernel/stat.h"
+-#include "user.h"
+-
+-int main(int argc, char *argv[]) {
+-    if (argc < 3) {
+-        fprintf(2, "Usage: trace mask command [args...]\n");
+-        exit(1);
+-    }
+-
+-    int mask = atoi(argv[1]);
+-
+-    if (trace(mask) < 0) {
+-        fprintf(2, "trace: failed to enable tracing\n");
+-        exit(1);
+-    }
+-
+-    exec(argv[2], &argv[2]);
+-    
+-    fprintf(2, "trace: exec failed\n");
+-    exit(1);
+-}
 diff --git a/user/user.h b/user/user.h
-index 617b9f8..f16fe27 100644
+index 183eb83..f16fe27 100644
 --- a/user/user.h
 +++ b/user/user.h
-@@ -22,7 +22,6 @@ int getpid(void);
+@@ -1,7 +1,4 @@
+ struct stat;
+-struct sysinfo;
+-
+-#include "../kernel/types.h"
+ 
+ // system calls
+ int fork(void);
+@@ -25,9 +22,6 @@ int getpid(void);
  char* sbrk(int);
  int sleep(int);
  int uptime(void);
 -int getyear(void);
+-int sysinfo(struct sysinfo*);
+-int trace(int);
  
  // ulib.c
  int stat(const char*, struct stat*);
 diff --git a/user/usys.pl b/user/usys.pl
-index df8412d..01e426e 100755
+index 547119e..01e426e 100755
 --- a/user/usys.pl
 +++ b/user/usys.pl
-@@ -36,4 +36,3 @@ entry("getpid");
+@@ -36,6 +36,3 @@ entry("getpid");
  entry("sbrk");
  entry("sleep");
  entry("uptime");
 -entry("getyear");
-\ No newline at end of file
+-entry("sysinfo");
+-entry("trace");
 diff --git a/user/xargs.c b/user/xargs.c
 deleted file mode 100644
 index 4b74646..0000000
@@ -955,3 +2415,10 @@ index a45e1ac..0000000
 @@ -1,2 +0,0 @@
 -[ZoneTransfer]
 -ZoneId=3
+diff --git a/xv6-labs-2024 b/xv6-labs-2024
+deleted file mode 160000
+index 79e8024..0000000
+--- a/xv6-labs-2024
++++ /dev/null
+@@ -1 +0,0 @@
+-Subproject commit 79e8024d61c3dd92ccf064fc67bb99cb999f70ab
